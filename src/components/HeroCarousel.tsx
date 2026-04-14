@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Info, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Movie } from '@/types';
 
 const TMDB_API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY;
@@ -59,6 +60,11 @@ const HeroCarousel = ({ items, onPlay }: HeroCarouselProps) => {
     setTrailerKey(null);
     setIsTrailerReady(false);
 
+    // Delay trailer fetch to prioritize initial visual load
+    const timer = setTimeout(() => {
+      fetchTrailer();
+    }, 2000);
+
     async function fetchTrailer() {
       if (!activeItem?.id || !TMDB_API_KEY) return;
       try {
@@ -75,6 +81,7 @@ const HeroCarousel = ({ items, onPlay }: HeroCarouselProps) => {
       }
     }
     fetchTrailer();
+    return () => clearTimeout(timer);
   }, [activeItem?.id]);
 
   const variants = {
@@ -121,18 +128,22 @@ const HeroCarousel = ({ items, onPlay }: HeroCarouselProps) => {
                 />
                 {/* Fallback image while trailer loads or if it fails to appear quickly */}
                 {!isTrailerReady && (
-                  <img
+                  <Image
                     src={`https://image.tmdb.org/t/p/original${activeItem.backdrop_path}`}
                     alt={activeItem.title}
-                    className="absolute inset-0 w-full h-full object-cover"
+                    fill
+                    priority={activeIndex === 0}
+                    className="object-cover"
                   />
                 )}
               </div>
             ) : (
-              <img
+              <Image
                 src={`https://image.tmdb.org/t/p/original${activeItem.backdrop_path}`}
                 alt={activeItem.title}
-                className="w-full h-full object-cover"
+                fill
+                priority={activeIndex === 0}
+                className="object-cover"
               />
             )}
             
