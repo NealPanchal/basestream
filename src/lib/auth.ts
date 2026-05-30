@@ -6,7 +6,15 @@
  * Access is tied to the wallet address that made the payment.
  */
 
-import { ACCESS_DURATION_MS, checkRecentPayment, isWhitelisted } from './blockchain';
+import { 
+  ACCESS_DURATION_MS, 
+  checkRecentPayment, 
+  isWhitelisted,
+  basePublicClient,
+  CONTRACT_ADDRESS,
+  BASE_STREAM_ACCESS_ABI
+} from './blockchain';
+import { verifyMessage } from 'viem';
 
 // ============================================================================
 // Types
@@ -147,11 +155,34 @@ export async function checkAccess(walletAddress?: string): Promise<AccessStatus>
 
     // No access data stored locally
     if (!dataString || !signature) {
-      // RECOVERY: If we have a wallet address, check on-chain for recent payments
+      // RECOVERY: If we have a wallet address, check on-chain contract and indexer history
       if (walletAddress) {
+        // 1. Try On-chain Smart Contract Verification First
+        try {
+          const onChainHasAccess = await basePublicClient.readContract({
+            address: CONTRACT_ADDRESS,
+            abi: BASE_STREAM_ACCESS_ABI,
+            functionName: 'hasAccess',
+            args: [walletAddress as `0x${string}`],
+          });
+
+          if (onChainHasAccess) {
+            console.info('[BaseStream] Found valid on-chain contract access for:', walletAddress);
+            const restoredData = await grantAccess('0x_ONCHAIN_CONTRACT_VALIDATED', walletAddress);
+            return {
+              isValid: true,
+              data: restoredData,
+              timeRemaining: Math.max(0, restoredData.expiresAt - Date.now())
+            };
+          }
+        } catch (contractError) {
+          console.warn('[BaseStream] On-chain contract validation bypassed/failed, falling back to Basescan:', contractError);
+        }
+
+        // 2. Fallback to Basescan Account History
         const recentTxHash = await checkRecentPayment(walletAddress);
         if (recentTxHash) {
-          console.info('[BaseStream] Found recent on-chain payment, restoring access for:', walletAddress);
+          console.info('[BaseStream] Found recent on-chain payment on Basescan, restoring access for:', walletAddress);
           const restoredData = await grantAccess(recentTxHash, walletAddress);
           return {
             isValid: true,
@@ -168,8 +199,28 @@ export async function checkAccess(walletAddress?: string): Promise<AccessStatus>
     if (!isIntact) {
       console.warn('[BaseStream] Access data integrity check failed — possible tampering detected');
       
-      // Even if tampered, check if we can recover from on-chain
+      // Even if tampered, check if we can recover from on-chain contract or history
       if (walletAddress) {
+        try {
+          const onChainHasAccess = await basePublicClient.readContract({
+            address: CONTRACT_ADDRESS,
+            abi: BASE_STREAM_ACCESS_ABI,
+            functionName: 'hasAccess',
+            args: [walletAddress as `0x${string}`],
+          });
+
+          if (onChainHasAccess) {
+            const restoredData = await grantAccess('0x_ONCHAIN_CONTRACT_VALIDATED', walletAddress);
+            return {
+              isValid: true,
+              data: restoredData,
+              timeRemaining: Math.max(0, restoredData.expiresAt - Date.now())
+            };
+          }
+        } catch (contractError) {
+          console.warn('[BaseStream] On-chain contract recovery bypassed/failed:', contractError);
+        }
+
         const recentTxHash = await checkRecentPayment(walletAddress);
         if (recentTxHash) {
           const restoredData = await grantAccess(recentTxHash, walletAddress);
@@ -229,29 +280,18 @@ export async function checkAccess(walletAddress?: string): Promise<AccessStatus>
   }
 }
 
+export const ADMIN_ADDRESS = '0x5041A07E593E94747881cd12C49ba5f1545512e2';
+
 /**
- * Admin utility to generate an unlimited access pass token for a target address.
- * Encodes the signed access pass inside a base64 token.
+ * Utility to package an Admin-signed unlimited access pass token.
+ * Encodes the signed payload inside a base64 string.
  */
-export async function generateAdminPass(targetAddress: string): Promise<string> {
-  const targetLower = targetAddress.toLowerCase().trim();
-  const now = Date.now();
-  const accessData: AccessData = {
-    walletAddress: targetLower,
-    txHash: '0x_ADMIN_GRANTED_UNLIMITED_ACCESS',
-    grantedAt: now,
-    expiresAt: now + (100 * 365 * 24 * 60 * 60 * 1000), // 100 years
-  };
-
-  const dataString = JSON.stringify(accessData);
-  const signature = await generateSignature(dataString);
-
+export function packageAdminToken(dataString: string, signature: string): string {
   const payload = {
     data: dataString,
     sig: signature
   };
 
-  // Convert to base64
   return typeof window !== 'undefined' 
     ? window.btoa(JSON.stringify(payload))
     : Buffer.from(JSON.stringify(payload)).toString('base64');
@@ -259,7 +299,8 @@ export async function generateAdminPass(targetAddress: string): Promise<string> 
 
 /**
  * Redeem an admin access pass token.
- * Validates signature, connected wallet matching, and saves credentials.
+ * Validates the cryptographic EIP-191 signature against the hardcoded Admin Address,
+ * checks that the pass belongs to the currently connected user, and saves it.
  */
 export async function redeemAdminPass(token: string, connectedAddress: string): Promise<{ success: boolean; error?: string }> {
   try {
@@ -272,25 +313,34 @@ export async function redeemAdminPass(token: string, connectedAddress: string): 
       return { success: false, error: 'Invalid token structure.' };
     }
 
-    // Verify signature integrity
-    const isIntact = await verifySignature(payload.data, payload.sig);
-    if (!isIntact) {
-      return { success: false, error: 'Security verification failed. Token signature is invalid.' };
+    // Cryptographically verify EIP-191 signature using viem's verifyMessage
+    // This is mathematically secure and prevents static key exposures.
+    const isValidSignature = await verifyMessage({
+      address: ADMIN_ADDRESS as `0x${string}`,
+      message: payload.data,
+      signature: payload.sig as `0x${string}`
+    });
+
+    if (!isValidSignature) {
+      return { success: false, error: 'Cryptographic signature verification failed. Token is invalid or forged.' };
     }
 
     const data: AccessData = JSON.parse(payload.data);
-    if (data.walletAddress !== connectedAddress.toLowerCase().trim()) {
+    if (data.walletAddress.toLowerCase().trim() !== connectedAddress.toLowerCase().trim()) {
       return { success: false, error: `This token was generated for wallet ${data.walletAddress}. Connect that wallet to activate it.` };
     }
 
-    // Save to local storage
+    // Save to local storage under HMAC signature format (since we verified the ECDSA signature,
+    // we save the valid pass, signing it locally using the internal verifySignature to keep checkAccess happy)
+    const localHmacSig = await generateSignature(payload.data);
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
       localStorage.setItem(STORAGE_KEY, payload.data);
-      localStorage.setItem(SIGNATURE_KEY, payload.sig);
+      localStorage.setItem(SIGNATURE_KEY, localHmacSig);
     }
 
     return { success: true };
   } catch (error: any) {
+    console.error('[BaseStream] Redemption error:', error);
     return { success: false, error: 'Failed to decode token. Ensure you copied the exact, complete token string.' };
   }
 }

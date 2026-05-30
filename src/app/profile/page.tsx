@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useBalance } from 'wagmi';
+import { useAccount, useBalance, useSignMessage } from 'wagmi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, 
@@ -21,7 +21,7 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import { getUserProfile, saveUserProfile, getWatchHistory } from '@/utils/storage';
 import { useAccess } from '@/hooks/useAccess';
-import { generateAdminPass } from '@/lib/auth';
+import { packageAdminToken } from '@/lib/auth';
 import ContentRow from '@/components/ContentRow';
 
 const AVATARS = [
@@ -39,6 +39,7 @@ export default function ProfilePage() {
   const { address, isConnected } = useAccount();
   const { data: balance } = useBalance({ address });
   const { hasAccess, timeFormatted } = useAccess(false, address);
+  const { signMessageAsync } = useSignMessage();
   const router = useRouter();
 
   const [profile, setProfile] = useState<any>(null);
@@ -69,11 +70,27 @@ export default function ProfilePage() {
     }
     try {
       setAdminError('');
-      const token = await generateAdminPass(adminTargetAddress.trim());
+      
+      const accessData = {
+        walletAddress: adminTargetAddress.toLowerCase().trim(),
+        txHash: '0x_ADMIN_GRANTED_UNLIMITED_ACCESS',
+        grantedAt: Date.now(),
+        expiresAt: Date.now() + (100 * 365 * 24 * 60 * 60 * 1000)
+      };
+
+      const dataString = JSON.stringify(accessData);
+      
+      // Request Admin cryptographic wallet signature
+      const signature = await signMessageAsync({
+        message: dataString
+      });
+
+      const token = packageAdminToken(dataString, signature);
       setAdminToken(token);
       setAdminSuccess(true);
     } catch (err: any) {
-      setAdminError('Failed to generate admin pass.');
+      console.error('[BaseStream] Admin sign error:', err);
+      setAdminError(err?.message || 'Failed to sign and generate admin pass.');
       setAdminSuccess(false);
     }
   };

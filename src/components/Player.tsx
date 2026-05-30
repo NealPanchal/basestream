@@ -76,7 +76,7 @@ const Player = ({ id, type, season, episode, title, onProgress, onEnded }: Playe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       // Verify origin for security
-      if (!event.origin.includes('vidking.net')) return;
+      if (event.origin !== 'https://www.vidking.net' && event.origin !== 'https://vidking.net') return;
 
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;

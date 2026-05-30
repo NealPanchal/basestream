@@ -26,7 +26,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useAccount, useSendTransaction, useWaitForTransactionReceipt, useChainId, useSwitchChain } from 'wagmi';
+import { useAccount, useSendTransaction, useWaitForTransactionReceipt, useChainId, useSwitchChain, useSignMessage } from 'wagmi';
 import { parseEther } from 'viem';
 
 import WalletConnect from '@/components/WalletConnect';
@@ -34,7 +34,7 @@ import TransactionStatus, { type TransactionState } from '@/components/Transacti
 import AccessBadge from '@/components/AccessBadge';
 import Logo from '@/components/Logo';
 import { useAccess } from '@/hooks/useAccess';
-import { grantAccess, generateAdminPass, redeemAdminPass } from '@/lib/auth';
+import { grantAccess, packageAdminToken, redeemAdminPass } from '@/lib/auth';
 import {
   PAYMENT_ADDRESS,
   PAYMENT_AMOUNT_ETH,
@@ -110,6 +110,7 @@ export default function UnlockPage() {
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const { sendTransactionAsync } = useSendTransaction();
+  const { signMessageAsync } = useSignMessage();
 
   // Wait for transaction receipt
   const { isSuccess: isTxConfirmed } = useWaitForTransactionReceipt({
@@ -228,11 +229,27 @@ export default function UnlockPage() {
     }
     try {
       setAdminError('');
-      const token = await generateAdminPass(adminTargetAddress.trim());
+
+      const accessData = {
+        walletAddress: adminTargetAddress.toLowerCase().trim(),
+        txHash: '0x_ADMIN_GRANTED_UNLIMITED_ACCESS',
+        grantedAt: Date.now(),
+        expiresAt: Date.now() + (100 * 365 * 24 * 60 * 60 * 1000)
+      };
+
+      const dataString = JSON.stringify(accessData);
+
+      // Request Admin cryptographic wallet signature
+      const signature = await signMessageAsync({
+        message: dataString
+      });
+
+      const token = packageAdminToken(dataString, signature);
       setAdminToken(token);
       setAdminSuccess(true);
     } catch (err: any) {
-      setAdminError('Failed to generate admin pass.');
+      console.error('[BaseStream] Admin sign error:', err);
+      setAdminError(err?.message || 'Failed to sign and generate admin pass.');
       setAdminSuccess(false);
     }
   };
