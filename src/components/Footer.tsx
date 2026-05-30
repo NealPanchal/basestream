@@ -1,0 +1,62 @@
+'use client';
+
+/**
+ * Footer.tsx — Minimal Cineby-style site footer
+ *
+ * Dark near-black bar with:
+ *   • BaseStream SVG logo + wordmark (left)
+ *   • Disclaimer text
+ *   • Contact link
+ */
+
+import Logo from './Logo';
+
+const Footer = () => (
+  <footer
+    className="w-full px-6 py-8 md:py-10 border-t"
+    style={{
+      background: '#0a0a0a',
+      borderColor: 'rgba(255,255,255,0.06)',
+      fontFamily: '"DM Sans", system-ui, sans-serif',
+    }}
+  >
+    <div
+      className="mx-auto flex flex-col gap-3"
+      style={{ maxWidth: '1800px' }}
+    >
+      {/* Logo + wordmark */}
+      <div className="flex items-center gap-2.5">
+        <Logo size={26} color="#0052FF" />
+        <span
+          className="font-extrabold text-white text-sm tracking-tight"
+          style={{ letterSpacing: '-0.01em' }}
+        >
+          BaseStream
+        </span>
+      </div>
+
+      {/* Disclaimer */}
+      <p
+        className="text-sm leading-relaxed"
+        style={{ color: 'rgba(255,255,255,0.40)', maxWidth: '72ch' }}
+      >
+        This site does not store any files on our server. We only link to
+        media hosted on 3rd-party services. All content is provided by
+        non-affiliated third parties and is publicly available online.
+      </p>
+
+      {/* Contact */}
+      <a
+        href="mailto:contact@basestream.app"
+        className="text-sm transition-colors w-fit"
+        style={{ color: 'rgba(255,255,255,0.30)' }}
+        onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.60)')}
+        onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.30)')}
+      >
+        contact@basestream.app
+      </a>
+    </div>
+  </footer>
+);
+
+export default Footer;
