@@ -57,7 +57,7 @@ export const APPROX_ETH_USD = 3200;
  */
 export const basePublicClient = createPublicClient({
   chain: base,
-  transport: http('https://mainnet.base.org'),
+  transport: http(process.env.NEXT_PUBLIC_BASE_RPC || 'https://mainnet.base.org'),
 });
 
 // ============================================================================
