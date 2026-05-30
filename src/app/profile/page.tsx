@@ -12,12 +12,16 @@ import {
   ChevronRight, 
   Camera, 
   X,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
+  Copy,
+  Check
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import { getUserProfile, saveUserProfile, getWatchHistory } from '@/utils/storage';
 import { useAccess } from '@/hooks/useAccess';
+import { generateAdminPass } from '@/lib/auth';
 import ContentRow from '@/components/ContentRow';
 
 const AVATARS = [
@@ -42,6 +46,44 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [tempUsername, setTempUsername] = useState('');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+
+  // Admin & Token states for Settings console
+  const [adminTargetAddress, setAdminTargetAddress] = useState('');
+  const [adminToken, setAdminToken] = useState('');
+  const [adminError, setAdminError] = useState('');
+  const [adminSuccess, setAdminSuccess] = useState(false);
+  const [adminCopied, setAdminCopied] = useState(false);
+
+  const isAdmin = address?.toLowerCase() === '0x5041a07e593e94747881cd12c49ba5f1545512e2';
+
+  const handleGenerateAdminPass = async () => {
+    if (!adminTargetAddress.trim()) {
+      setAdminError('Please enter a valid wallet address.');
+      setAdminSuccess(false);
+      return;
+    }
+    if (!adminTargetAddress.trim().startsWith('0x') || adminTargetAddress.trim().length !== 42) {
+      setAdminError('Invalid Ethereum address format (must be 42 characters starting with 0x).');
+      setAdminSuccess(false);
+      return;
+    }
+    try {
+      setAdminError('');
+      const token = await generateAdminPass(adminTargetAddress.trim());
+      setAdminToken(token);
+      setAdminSuccess(true);
+    } catch (err: any) {
+      setAdminError('Failed to generate admin pass.');
+      setAdminSuccess(false);
+    }
+  };
+
+  const handleCopyAdminToken = () => {
+    if (!adminToken) return;
+    navigator.clipboard.writeText(adminToken).catch(() => {});
+    setAdminCopied(true);
+    setTimeout(() => setAdminCopied(false), 2000);
+  };
 
   useEffect(() => {
     if (isConnected && address) {
@@ -235,6 +277,96 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Admin Console Card Settings Section */}
+        {isAdmin && (
+          <motion.div
+            className="mt-12 p-8 rounded-[2rem] bg-base-blue/5 border border-base-blue/20 backdrop-blur-xl relative overflow-hidden"
+            initial={{ opacity: 0, y: 28 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="absolute top-6 right-6 flex items-center gap-1.5 px-3 py-1 rounded bg-base-blue text-xs font-black tracking-widest text-white uppercase">
+              Admin
+            </div>
+            
+            <h3 className="text-xl font-bold mb-3 flex items-center gap-3 text-white">
+              <Sparkles size={20} className="text-base-blue animate-pulse" />
+              Executive Access Delegation
+            </h3>
+            
+            <p className="text-sm text-gray-400 mb-8 max-w-2xl leading-relaxed">
+              As the administrator of BaseStream, you have the exclusive privilege to grant lifetime, unlimited streaming access to other wallets. Generate a cryptographically signed pass token below.
+            </p>
+
+            <div className="grid md:grid-cols-2 gap-8 items-start">
+              {/* Generator inputs */}
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Target Wallet Address</label>
+                  <input
+                    type="text"
+                    value={adminTargetAddress}
+                    onChange={(e) => setAdminTargetAddress(e.target.value)}
+                    placeholder="Enter recipient address (0x...)"
+                    className="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-base-blue focus:border-transparent transition-all font-mono"
+                  />
+                </div>
+
+                {adminError && (
+                  <p className="text-red-400 text-sm font-semibold">{adminError}</p>
+                )}
+
+                <button
+                  onClick={handleGenerateAdminPass}
+                  className="px-6 py-3.5 bg-base-blue hover:bg-base-blue-hover text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-base-blue/20"
+                >
+                  Generate Lifetime Access Token
+                </button>
+              </div>
+
+              {/* Generator Output */}
+              <div>
+                {adminSuccess && adminToken ? (
+                  <div className="space-y-4 p-5 rounded-2xl bg-white/5 border border-white/5">
+                    <p className="text-emerald-400 text-sm font-bold flex items-center gap-2">
+                      <Check size={16} /> Token Generated Successfully!
+                    </p>
+                    <p className="text-xs text-gray-500 leading-normal">
+                      Copy the entire token string below and share it with the recipient. They can redeem it on the Unlock page to activate unlimited access instantly.
+                    </p>
+                    <textarea
+                      readOnly
+                      value={adminToken}
+                      rows={4}
+                      className="w-full bg-black/60 border border-white/10 text-gray-300 p-3 rounded-xl text-xs font-mono focus:outline-none resize-none break-all"
+                    />
+                    <button
+                      onClick={handleCopyAdminToken}
+                      className="w-full py-3 bg-white/10 hover:bg-white/15 text-white text-sm font-bold rounded-xl transition-all border border-white/10 flex items-center justify-center gap-2"
+                    >
+                      {adminCopied ? (
+                        <>
+                          <Check size={16} className="text-emerald-400" />
+                          <span>Copied to Clipboard!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={16} />
+                          <span>Copy Token String</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center py-10 border-2 border-dashed border-white/5 rounded-2xl opacity-40">
+                    <p className="text-sm text-gray-500 font-medium">Token Output Console</p>
+                    <p className="text-xs text-gray-600 mt-1">Pending target address input...</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Watch History */}
         <div className="mt-16">
