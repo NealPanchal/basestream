@@ -29,7 +29,6 @@ import {
   Tv2,
   Home,
   AlertTriangle,
-  Radio,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
@@ -53,7 +52,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Home',       href: '/',           icon: Home  },
   { label: 'Movies',     href: '/movies',     icon: Film  },
   { label: 'TV Shows',   href: '/tv',         icon: Tv2   },
-  { label: 'Live',       href: '/live',       icon: Radio },
 ];
 
 // ─── Sub-components ──────────────────────────────────────────────────────────

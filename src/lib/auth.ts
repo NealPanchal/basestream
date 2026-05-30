@@ -230,6 +230,72 @@ export async function checkAccess(walletAddress?: string): Promise<AccessStatus>
 }
 
 /**
+ * Admin utility to generate an unlimited access pass token for a target address.
+ * Encodes the signed access pass inside a base64 token.
+ */
+export async function generateAdminPass(targetAddress: string): Promise<string> {
+  const targetLower = targetAddress.toLowerCase().trim();
+  const now = Date.now();
+  const accessData: AccessData = {
+    walletAddress: targetLower,
+    txHash: '0x_ADMIN_GRANTED_UNLIMITED_ACCESS',
+    grantedAt: now,
+    expiresAt: now + (100 * 365 * 24 * 60 * 60 * 1000), // 100 years
+  };
+
+  const dataString = JSON.stringify(accessData);
+  const signature = await generateSignature(dataString);
+
+  const payload = {
+    data: dataString,
+    sig: signature
+  };
+
+  // Convert to base64
+  return typeof window !== 'undefined' 
+    ? window.btoa(JSON.stringify(payload))
+    : Buffer.from(JSON.stringify(payload)).toString('base64');
+}
+
+/**
+ * Redeem an admin access pass token.
+ * Validates signature, connected wallet matching, and saves credentials.
+ */
+export async function redeemAdminPass(token: string, connectedAddress: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const raw = typeof window !== 'undefined'
+      ? window.atob(token.trim())
+      : Buffer.from(token.trim(), 'base64').toString('utf-8');
+
+    const payload = JSON.parse(raw);
+    if (!payload.data || !payload.sig) {
+      return { success: false, error: 'Invalid token structure.' };
+    }
+
+    // Verify signature integrity
+    const isIntact = await verifySignature(payload.data, payload.sig);
+    if (!isIntact) {
+      return { success: false, error: 'Security verification failed. Token signature is invalid.' };
+    }
+
+    const data: AccessData = JSON.parse(payload.data);
+    if (data.walletAddress !== connectedAddress.toLowerCase().trim()) {
+      return { success: false, error: `This token was generated for wallet ${data.walletAddress}. Connect that wallet to activate it.` };
+    }
+
+    // Save to local storage
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
+      localStorage.setItem(STORAGE_KEY, payload.data);
+      localStorage.setItem(SIGNATURE_KEY, payload.sig);
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: 'Failed to decode token. Ensure you copied the exact, complete token string.' };
+  }
+}
+
+/**
  * Revoke access by clearing all stored access data.
  */
 export function revokeAccess(): void {

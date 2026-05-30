@@ -34,7 +34,7 @@ import TransactionStatus, { type TransactionState } from '@/components/Transacti
 import AccessBadge from '@/components/AccessBadge';
 import Logo from '@/components/Logo';
 import { useAccess } from '@/hooks/useAccess';
-import { grantAccess } from '@/lib/auth';
+import { grantAccess, generateAdminPass, redeemAdminPass } from '@/lib/auth';
 import {
   PAYMENT_ADDRESS,
   PAYMENT_AMOUNT_ETH,
@@ -90,6 +90,21 @@ export default function UnlockPage() {
   const [txState, setTxState] = useState<TransactionState>('idle');
   const [txError, setTxError] = useState<string>('');
   const [currentTxHash, setCurrentTxHash] = useState<`0x${string}` | undefined>();
+
+  // Admin & Token states
+  const [adminTargetAddress, setAdminTargetAddress] = useState('');
+  const [adminToken, setAdminToken] = useState('');
+  const [adminError, setAdminError] = useState('');
+  const [adminSuccess, setAdminSuccess] = useState(false);
+  const [adminCopied, setAdminCopied] = useState(false);
+
+  const [redeemToken, setRedeemToken] = useState('');
+  const [redeemError, setRedeemError] = useState('');
+  const [redeemSuccess, setRedeemSuccess] = useState(false);
+  const [redeeming, setRedeeming] = useState(false);
+  const [showRedeemPanel, setShowRedeemPanel] = useState(false);
+
+  const isAdmin = address?.toLowerCase() === '0x5041a07e593e94747881cd12c49ba5f1545512e2';
 
   // wagmi hooks
   const chainId = useChainId();
@@ -198,6 +213,70 @@ export default function UnlockPage() {
     setTxState('idle');
     setTxError('');
     setCurrentTxHash(undefined);
+  };
+
+  const handleGenerateAdminPass = async () => {
+    if (!adminTargetAddress.trim()) {
+      setAdminError('Please enter a valid wallet address.');
+      setAdminSuccess(false);
+      return;
+    }
+    if (!adminTargetAddress.trim().startsWith('0x') || adminTargetAddress.trim().length !== 42) {
+      setAdminError('Invalid Ethereum address format (must be 42 characters starting with 0x).');
+      setAdminSuccess(false);
+      return;
+    }
+    try {
+      setAdminError('');
+      const token = await generateAdminPass(adminTargetAddress.trim());
+      setAdminToken(token);
+      setAdminSuccess(true);
+    } catch (err: any) {
+      setAdminError('Failed to generate admin pass.');
+      setAdminSuccess(false);
+    }
+  };
+
+  const handleCopyAdminToken = () => {
+    if (!adminToken) return;
+    navigator.clipboard.writeText(adminToken).catch(() => {});
+    setAdminCopied(true);
+    setTimeout(() => setAdminCopied(false), 2000);
+  };
+
+  const handleRedeemPass = async () => {
+    if (!redeemToken.trim()) {
+      setRedeemError('Please paste your access token.');
+      setRedeemSuccess(false);
+      return;
+    }
+    if (!address) {
+      setRedeemError('Please connect your wallet first.');
+      setRedeemSuccess(false);
+      return;
+    }
+    try {
+      setRedeemError('');
+      setRedeeming(true);
+      const res = await redeemAdminPass(redeemToken.trim(), address);
+      if (res.success) {
+        setRedeemSuccess(true);
+        // Automatically recheck permissions to unlock instantly
+        await recheck();
+        // Redirect home after 1.5 seconds
+        setTimeout(() => {
+          router.push('/');
+        }, 1500);
+      } else {
+        setRedeemError(res.error || 'Failed to redeem token.');
+        setRedeemSuccess(false);
+      }
+    } catch (err: any) {
+      setRedeemError('Failed to redeem token.');
+      setRedeemSuccess(false);
+    } finally {
+      setRedeeming(false);
+    }
   };
 
   return (
@@ -513,6 +592,54 @@ export default function UnlockPage() {
                           </span>
                         </button>
                       </div>
+
+                      {/* Redeem Token Section */}
+                      <div className="pt-3 mt-1 border-t border-white/[0.05]">
+                        {!showRedeemPanel ? (
+                          <button
+                            onClick={() => setShowRedeemPanel(true)}
+                            className="w-full py-2 text-center text-xs font-semibold text-gray-400 hover:text-white transition-colors"
+                          >
+                            Have an Admin Access Token? Redeem here
+                          </button>
+                        ) : (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="space-y-3 pt-2"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-gray-300">Redeem Admin Token</span>
+                              <button
+                                onClick={() => { setShowRedeemPanel(false); setRedeemError(''); setRedeemSuccess(false); }}
+                                className="text-[10px] font-semibold text-gray-500 hover:text-white"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                            <textarea
+                              value={redeemToken}
+                              onChange={(e) => setRedeemToken(e.target.value)}
+                              placeholder="Paste base64 access token here..."
+                              rows={3}
+                              className="w-full bg-black/60 border border-white/10 text-white p-2.5 rounded-xl text-[10px] font-mono focus:outline-none focus:ring-2 focus:ring-base-blue focus:border-transparent resize-none break-all"
+                            />
+                            {redeemError && (
+                              <p className="text-red-400 text-xs font-semibold leading-tight">{redeemError}</p>
+                            )}
+                            {redeemSuccess && (
+                              <p className="text-emerald-400 text-xs font-semibold leading-tight">Access Redeemed! Unlocking cinema...</p>
+                            )}
+                            <button
+                              onClick={handleRedeemPass}
+                              disabled={redeeming || redeemSuccess}
+                              className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-emerald-500/10 flex items-center justify-center gap-1.5"
+                            >
+                              {redeeming ? 'Activating...' : 'Activate Lifetime Pass'}
+                            </button>
+                          </motion.div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -531,6 +658,65 @@ export default function UnlockPage() {
                       </span>
                     </div>
                   </motion.div>
+
+                  {/* Admin Panel Card */}
+                  {isAdmin && (
+                    <motion.div
+                      className="mt-6 p-6 rounded-3xl bg-base-blue/10 border border-base-blue/30 backdrop-blur-xl shadow-xl relative overflow-hidden"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-0.5 rounded bg-base-blue text-[9px] font-black tracking-widest text-white uppercase">
+                        Admin
+                      </div>
+                      <h3 className="text-base font-black text-white mb-2 flex items-center gap-2">
+                        <Sparkles size={16} className="text-base-blue animate-pulse" />
+                        Admin Access Grant
+                      </h3>
+                      <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+                        Generate an unlimited 100-year access token for a target address. Send the generated token to the user for redemption.
+                      </p>
+
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          value={adminTargetAddress}
+                          onChange={(e) => setAdminTargetAddress(e.target.value)}
+                          placeholder="Target Address (0x...)"
+                          className="w-full bg-black/50 border border-white/10 text-white px-3.5 py-2.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-base-blue focus:border-transparent transition-all font-mono"
+                        />
+
+                        {adminError && (
+                          <p className="text-red-400 text-xs font-semibold">{adminError}</p>
+                        )}
+
+                        <button
+                          onClick={handleGenerateAdminPass}
+                          className="w-full py-2.5 bg-base-blue hover:bg-base-blue-hover text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-base-blue/15"
+                        >
+                          Generate Access Token
+                        </button>
+
+                        {adminSuccess && adminToken && (
+                          <div className="space-y-2 mt-3 pt-3 border-t border-white/10">
+                            <p className="text-emerald-400 text-xs font-semibold">Token Generated Successfully!</p>
+                            <textarea
+                              readOnly
+                              value={adminToken}
+                              rows={3}
+                              className="w-full bg-black/60 border border-white/10 text-gray-300 p-2.5 rounded-xl text-[10px] font-mono focus:outline-none resize-none break-all"
+                            />
+                            <button
+                              onClick={handleCopyAdminToken}
+                              className="w-full py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-bold rounded-xl transition-all border border-white/10"
+                            >
+                              {adminCopied ? 'Copied!' : 'Copy Token'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
               </motion.div>
             </div>
