@@ -124,13 +124,7 @@ export default function TVDetailPage() {
     setShowPlayer(true);
   }, [hasAccess, router]);
 
-  // Instantly open the player overlay if the user already has an active pass
-  useEffect(() => {
-    if (tvShow && hasAccess && !showPlayer) {
-      setPlayerLoading(true);
-      setShowPlayer(true);
-    }
-  }, [tvShow, hasAccess, showPlayer]);
+
 
   const handlePlayerLoad = useCallback(() => {
     setPlayerLoading(false);
@@ -197,6 +191,21 @@ export default function TVDetailPage() {
             title={tvShow.name}
             subtitle={`S${selectedSeason} E${selectedEpisode}`}
             onClose={handleClose}
+            topRightContent={
+              <select
+                value={selectedEpisode}
+                onChange={(e) => {
+                  const ep = parseInt(e.target.value);
+                  setSelectedEpisode(ep);
+                  handlePlay(selectedSeason, ep);
+                }}
+                className="bg-black/60 text-white text-sm font-bold px-3 py-1.5 rounded border border-white/20 outline-none backdrop-blur-md cursor-pointer hover:bg-white/10 transition-colors"
+              >
+                {Array.from({ length: currentSeasonData?.episode_count || 0 }, (_, i) => i + 1).map(ep => (
+                  <option key={ep} value={ep} className="bg-gray-900">Episode {ep}</option>
+                ))}
+              </select>
+            }
             renderControls={(isIdle) => (
               <>
                 <SubtitleOverlay cues={subtitleCues} playStartMs={playStartMs} />

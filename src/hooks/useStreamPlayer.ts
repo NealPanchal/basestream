@@ -198,6 +198,35 @@ export function useStreamPlayer(
     return url;
   }, [tmdbId, type, season, episode, audioLang, currentProvider]);
 
+  // Reset state if content changes
+  const prevContentRef = useRef({ tmdbId, season, episode, type });
+  useEffect(() => {
+    const prev = prevContentRef.current;
+    if (prev.tmdbId !== tmdbId || prev.season !== season || prev.episode !== episode || prev.type !== type) {
+      prevContentRef.current = { tmdbId, season, episode, type };
+      
+      // Full reset for new content
+      setIsLoading(true);
+      setIsLoaded(false);
+      setError(null);
+      setToastMessage(null);
+      setExhausted(false);
+      setFailureReason(null);
+      setProviderLocked(false);
+      setProviderState('LOADING');
+      setLoadStartMs(performance.now());
+      setFallbackHistory([]);
+      
+      // Recalculate roster and check cache
+      const cached = getCachedProvider(tmdbId, type, season, episode);
+      if (cached && roster.includes(cached as ProviderId)) {
+        setProviderIndex(roster.indexOf(cached as ProviderId));
+      } else {
+        setProviderIndex(0);
+      }
+    }
+  }, [tmdbId, season, episode, type, roster]);
+
   // Refs for timers
   const iframeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

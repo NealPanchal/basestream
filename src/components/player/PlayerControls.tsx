@@ -63,5 +63,73 @@ export const PlayerControls = memo(function PlayerControls({
     };
   }, [activeDropdown]);
 
-  return null;
+  return (
+    <AnimatePresence>
+      {!isIdle && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          transition={{ duration: 0.3 }}
+          className="absolute bottom-6 left-6 flex items-center gap-3 z-50 pointer-events-auto"
+        >
+          {/* Server Dropdown */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setActiveDropdown(activeDropdown === 'servers' ? null : 'servers')}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all"
+              style={{
+                background:    'rgba(0,0,0,0.65)',
+                backdropFilter:'blur(12px)',
+                border:        activeDropdown === 'servers' ? '1px solid rgba(0,82,255,0.60)' : '1px solid rgba(255,255,255,0.12)',
+              }}
+            >
+              <Server size={13} color={activeDropdown === 'servers' ? '#0052FF' : 'rgba(255,255,255,0.75)'} />
+              <span className="text-xs font-bold text-white">
+                {currentProvider ? PROVIDER_LABELS[currentProvider] || currentProvider : 'Server'}
+              </span>
+            </button>
+            
+            <AnimatePresence>
+              {activeDropdown === 'servers' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                  className="absolute bottom-full left-0 mb-3 w-[180px] rounded-[18px] bg-[#0a0a0c]/90 backdrop-blur-xl border border-white/[0.04] shadow-2xl p-2 z-[100] flex flex-col gap-1"
+                >
+                  <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 px-2 border-b border-white/5 pb-2">Select Server</div>
+                  {PROVIDER_ROSTER.map(provider => (
+                    <button
+                      key={provider}
+                      onClick={() => {
+                        switchProvider?.(provider);
+                        setActiveDropdown(null);
+                      }}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                        currentProvider === provider ? 'bg-[#0052ff]/15 text-[#3b82f6] border border-[#0052ff]/25' : 'text-gray-300 hover:bg-white/5 border border-transparent'
+                      }`}
+                    >
+                      {PROVIDER_LABELS[provider] || provider}
+                      {currentProvider === provider && <Check size={14} className="text-[#3b82f6]" />}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+          
+          {/* Settings Panel */}
+          <div className="relative">
+            <SettingsPanel 
+              isOpen={activeDropdown === 'settings'} 
+              onToggle={() => setActiveDropdown(activeDropdown === 'settings' ? null : 'settings')}
+              onClose={() => setActiveDropdown(null)}
+            />
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 });

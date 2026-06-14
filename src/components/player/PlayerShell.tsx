@@ -11,9 +11,10 @@ interface PlayerShellProps {
   onClose: () => void;
   children: ReactNode;
   renderControls: (isIdle: boolean) => ReactNode;
+  topRightContent?: ReactNode;
 }
 
-export function PlayerShell({ title, subtitle, onClose, children, renderControls }: PlayerShellProps) {
+export function PlayerShell({ title, subtitle, onClose, children, renderControls, topRightContent }: PlayerShellProps) {
   const { isIdle } = usePlayerIdle(2000);
 
   // Handle Escape key to close player
@@ -54,12 +55,17 @@ export function PlayerShell({ title, subtitle, onClose, children, renderControls
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
             onMouseEnter={() => window.focus()}
-            className="absolute top-0 left-0 w-full flex items-center gap-4 pr-6 pl-20 py-4 bg-gradient-to-b from-black/80 to-transparent flex-shrink-0 z-50 pointer-events-auto"
+            className="absolute top-0 left-0 w-full flex items-center justify-between pr-6 pl-20 py-4 bg-gradient-to-b from-black/80 to-transparent flex-shrink-0 z-50 pointer-events-auto"
           >
             <div className="flex flex-col items-start leading-tight min-w-0">
               <span className="font-medium text-gray-200 truncate max-w-[240px] sm:max-w-none">{title}</span>
               {subtitle && <span className="text-sm text-gray-400">{subtitle}</span>}
             </div>
+            {topRightContent && (
+              <div className="flex items-center gap-4" onClick={(e) => e.stopPropagation()}>
+                {topRightContent}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
