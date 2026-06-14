@@ -110,6 +110,14 @@ export default function MovieDetailPage() {
     setShowPlayer(true);
   }, [hasAccess, router]);
 
+  // Instantly open the player overlay if the user already has an active pass
+  useEffect(() => {
+    if (movie && hasAccess && !showPlayer) {
+      setPlayerLoading(true);
+      setShowPlayer(true);
+    }
+  }, [movie, hasAccess, showPlayer]);
+
   const handlePlayerLoad = useCallback(() => {
     setPlayerLoading(false);
     setPlayStartMs(performance.now());

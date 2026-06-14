@@ -124,6 +124,14 @@ export default function TVDetailPage() {
     setShowPlayer(true);
   }, [hasAccess, router]);
 
+  // Instantly open the player overlay if the user already has an active pass
+  useEffect(() => {
+    if (tvShow && hasAccess && !showPlayer) {
+      setPlayerLoading(true);
+      setShowPlayer(true);
+    }
+  }, [tvShow, hasAccess, showPlayer]);
+
   const handlePlayerLoad = useCallback(() => {
     setPlayerLoading(false);
     setPlayStartMs(performance.now());

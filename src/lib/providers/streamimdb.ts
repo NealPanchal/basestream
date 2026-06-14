@@ -18,10 +18,10 @@ export const streamimdbProvider: StreamProvider = {
   healthCheckUrl: 'https://streamimdb.ru',
 
   generateMovieUrl(tmdbId: number, _audioLang = 'en'): string {
-    return `https://streamimdb.ru/embed/movie/${tmdbId}`;
+    return `https://streamimdb.ru/embed/movie/${tmdbId}?autoplay=1&autoPlay=true`;
   },
 
   generateTVUrl(tmdbId: number, season: number, episode: number, _audioLang = 'en'): string {
-    return `https://streamimdb.ru/embed/tv/${tmdbId}/${season}/${episode}`;
+    return `https://streamimdb.ru/embed/tv/${tmdbId}/${season}/${episode}?autoplay=1&autoPlay=true`;
   },
 };

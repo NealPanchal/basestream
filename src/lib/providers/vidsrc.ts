@@ -18,10 +18,10 @@ export const vidsrcProvider: StreamProvider = {
   healthCheckUrl: 'https://vidsrc.to',
 
   generateMovieUrl(tmdbId: number, _audioLang = 'en'): string {
-    return `https://vidsrc.to/embed/movie/${tmdbId}`;
+    return `https://vidsrc.to/embed/movie/${tmdbId}?autoplay=1&autoPlay=true`;
   },
 
   generateTVUrl(tmdbId: number, season: number, episode: number, _audioLang = 'en'): string {
-    return `https://vidsrc.to/embed/tv/${tmdbId}/${season}/${episode}`;
+    return `https://vidsrc.to/embed/tv/${tmdbId}/${season}/${episode}?autoplay=1&autoPlay=true`;
   },
 };
