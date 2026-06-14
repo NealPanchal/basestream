@@ -198,3 +198,25 @@ a, button {
   @apply transition-all duration-200 ease-in-out;
 }
 
+/* ============================================
+   Cinematic player loading shimmer
+   ============================================ */
+.cinematic-shimmer {
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.03) 45%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.03) 55%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: cinematic-shimmer 2.5s infinite ease-in-out;
+}
+
+@keyframes cinematic-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

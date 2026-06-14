@@ -1,29 +1,37 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Plus, ThumbsUp, Share2, ArrowLeft, Star, Clock } from 'lucide-react';
+import { Play, Plus, ThumbsUp, Share2, ArrowLeft, Star, Clock, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useAccount } from 'wagmi';
 import { useMovieDetails } from '@/lib/tmdb';
 import ContentRow from '@/components/ContentRow';
 import SkeletonLoader from '@/components/SkeletonLoader';
 import { addToWatchHistory } from '@/utils/storage';
+import { useAccess } from '@/hooks/useAccess';
 
-// Player language system
+import dynamic from 'next/dynamic';
 import { usePlayerStore } from '@/store/playerStore';
-import { buildMovieEmbedUrl } from '@/lib/player-prefs';
 import { fetchSubtitles, SubtitleCue } from '@/lib/subtitle-engine';
 import type { SubtitleStatus } from '@/lib/subtitle-engine';
-import { LanguagePanel } from '@/components/player/LanguagePanel';
-import { SubtitleOverlay } from '@/components/player/SubtitleOverlay';
-import { PlayerControls } from '@/components/player/PlayerControls';
+
+import { PlayerShell } from '@/components/player/PlayerShell';
+import { ProviderManager } from '@/components/player/ProviderManager';
+
+const SubtitleOverlay = dynamic(() => import('@/components/player/SubtitleOverlay').then(mod => mod.SubtitleOverlay), { ssr: false });
+const PlayerControls = dynamic(() => import('@/components/player/PlayerControls').then(mod => mod.PlayerControls), { ssr: false });
+
+// Reliability stack
+import { useStreamPlayer } from '@/hooks/useStreamPlayer';
 
 export default function MovieDetailPage() {
   const { address: walletAddress } = useAccount();
   const params  = useParams();
+  const router = useRouter();
   const movieId = params.id as string;
+  const { hasAccess } = useAccess(false, walletAddress);
   const { data: movie, isLoading, error } = useMovieDetails(movieId);
 
   const [showPlayer,    setShowPlayer]    = useState(false);
@@ -31,7 +39,7 @@ export default function MovieDetailPage() {
 
   // ── Language / subtitle state ─────────────────────────────────────────────
   const {
-    audioLang, subtitleLang, subtitleEnabled,
+    audioLang, subtitleLang, subtitleEnabled, server,
     setIsPlaying, reset: resetPlayer,
   } = usePlayerStore();
 
@@ -39,10 +47,22 @@ export default function MovieDetailPage() {
   const [subtitleStatus, setSubtitleStatus] = useState<SubtitleStatus>('idle');
   const [playStartMs,    setPlayStartMs]    = useState<number | null>(null);
 
-  // Embed URL rebuilds whenever audioLang changes → iframe reloads with new track
-  const embedUrl = movie
-    ? buildMovieEmbedUrl(movie.id, audioLang)
-    : '';
+  // ── Stream reliability hook ───────────────────────────────────────────────
+  const stream = useStreamPlayer({
+    tmdbId:   movie?.id ?? null,
+    type:     'movie',
+    audioLang,
+  });
+
+  // When the server preference changes in the player store, sync to the hook
+  // by resetting to the user's chosen provider (best-effort — hook fallback
+  // may override this if that provider is unhealthy).
+  useEffect(() => {
+    if (showPlayer && server) {
+      stream.switchProvider(server as any);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [server]);
 
   // ── Watch history ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -58,9 +78,11 @@ export default function MovieDetailPage() {
     }
   }, [movie, walletAddress]);
 
-  // ── Load subtitles whenever lang or show-player changes ───────────────────
+  // ── Load subtitles AFTER playback starts (never blocks video startup) ──────
   useEffect(() => {
     if (!showPlayer || !subtitleEnabled || !movie) return;
+    // Only fetch subtitles once playback is confirmed healthy
+    if (stream.providerState !== 'PLAYING' && stream.providerState !== 'READY') return;
 
     let cancelled = false;
     setSubtitleStatus('loading');
@@ -77,18 +99,33 @@ export default function MovieDetailPage() {
     });
 
     return () => { cancelled = true; };
-  }, [showPlayer, subtitleEnabled, subtitleLang, movie]);
+  }, [showPlayer, subtitleEnabled, subtitleLang, movie, stream.providerState]);
 
   const handlePlay = useCallback(() => {
+    if (!hasAccess) {
+      router.push('/unlock');
+      return;
+    }
     setPlayerLoading(true);
     setShowPlayer(true);
-  }, []);
+  }, [hasAccess, router]);
 
   const handlePlayerLoad = useCallback(() => {
     setPlayerLoading(false);
     setPlayStartMs(performance.now());
     setIsPlaying(true);
-  }, [setIsPlaying]);
+  }, []);
+
+  useEffect(() => {
+    if (stream.providerState === 'PLAYING' || stream.providerState === 'READY') {
+      handlePlayerLoad();
+    }
+  }, [stream.providerState, handlePlayerLoad]);
+
+  const handlePlayerError = useCallback(() => {
+    stream.handleIframeError();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleClose = useCallback(() => {
     setShowPlayer(false);
@@ -136,84 +173,31 @@ export default function MovieDetailPage() {
       {/* ── Fullscreen Player Overlay ── */}
       <AnimatePresence>
         {showPlayer && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] bg-black flex flex-col"
+          <PlayerShell
+            title={movie.title}
+            onClose={handleClose}
+            renderControls={(isIdle) => (
+              <>
+                <SubtitleOverlay cues={subtitleCues} playStartMs={playStartMs} />
+                <PlayerControls 
+                  subtitleStatus={subtitleStatus} 
+                  currentProvider={stream.currentProvider}
+                  providerHealth={stream.providerHealth}
+                  switchProvider={stream.switchProvider}
+                  isIdle={isIdle}
+                />
+              </>
+            )}
           >
-            {/* Top bar */}
-            <div className="flex items-center justify-between px-6 py-3 bg-black/80 backdrop-blur-sm flex-shrink-0">
-              <button
-                onClick={handleClose}
-                className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors min-w-0"
-              >
-                <ArrowLeft size={20} className="flex-shrink-0" />
-                <span className="font-medium truncate max-w-[180px] sm:max-w-none">{movie.title}</span>
-              </button>
-              {/* BaseStream watermark */}
-              <div className="flex items-center gap-2 opacity-60">
-                <div className="w-4 h-4 rounded bg-base-blue flex items-center justify-center">
-                  <span className="text-[8px] font-black text-white leading-none">B</span>
-                </div>
-                <span className="text-gray-400 text-xs font-semibold tracking-wide hidden sm:block">
-                  BaseStream
-                </span>
-              </div>
-            </div>
-
-            {/* Player wrapper */}
-            <div className="flex-1 relative overflow-hidden" style={{ zIndex: 0 }}>
-              {/* Loading spinner */}
-              {playerLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black" style={{ zIndex: 10 }}>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                    className="w-14 h-14 border-4 border-base-blue border-t-transparent rounded-full"
-                  />
-                </div>
-              )}
-
-              {/* iframe */}
-              <iframe
-                src={embedUrl}
-                className="w-full h-full border-0"
-                style={{ zIndex: 1 }}
-                allowFullScreen
-                allow="autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                onLoad={handlePlayerLoad}
-                title={movie.title}
-              />
-
-              {/* BaseStream badge */}
-              <div
-                aria-hidden="true"
-                className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg"
-                style={{
-                  zIndex: 2, pointerEvents: 'none',
-                  background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(255,255,255,0.08)', opacity: 0.70,
-                }}
-              >
-                <div className="w-3.5 h-3.5 rounded-sm bg-base-blue flex items-center justify-center flex-shrink-0">
-                  <span className="text-[7px] font-black text-white leading-none">B</span>
-                </div>
-                <span className="text-[10px] font-semibold text-white/80 tracking-wide leading-none">
-                  BaseStream
-                </span>
-              </div>
-
-              {/* ── Subtitle overlay ── */}
-              <SubtitleOverlay cues={subtitleCues} playStartMs={playStartMs} />
-
-              {/* ── Language panel ── */}
-              <LanguagePanel />
-
-              {/* ── Player controls bar ── */}
-              <PlayerControls subtitleStatus={subtitleStatus} />
-            </div>
-          </motion.div>
+            <ProviderManager
+              stream={stream}
+              playerLoading={playerLoading}
+              backdropUrl={backdropUrl}
+              posterUrl={posterUrl}
+              title={movie.title}
+              iframeKeyPrefix="movie"
+            />
+          </PlayerShell>
         )}
       </AnimatePresence>
 

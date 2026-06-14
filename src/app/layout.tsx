@@ -72,6 +72,25 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* DNS preconnect hints for streaming providers — eliminates cold-start penalty on fallback */}
+        <link rel="preconnect" href="https://vidsrc.to" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://streamimdb.ru" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://embed.su" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://www.2embed.cc" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://multiembed.mov" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://www.vidking.net" crossOrigin="anonymous" />
+        
+        <link rel="dns-prefetch" href="https://vidsrc.to" />
+        <link rel="dns-prefetch" href="https://streamimdb.ru" />
+        <link rel="dns-prefetch" href="https://embed.su" />
+        <link rel="dns-prefetch" href="https://www.2embed.cc" />
+        <link rel="dns-prefetch" href="https://multiembed.mov" />
+        <link rel="dns-prefetch" href="https://www.vidking.net" />
+        {/* TMDB image CDN preconnect */}
+        <link rel="preconnect" href="https://image.tmdb.org" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://image.tmdb.org" />
+      </head>
       <body className="min-h-full flex flex-col bg-base-black">
         <Providers>
           <LayoutShell>

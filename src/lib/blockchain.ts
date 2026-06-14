@@ -33,7 +33,7 @@ export const isWhitelisted = (address: string | undefined): boolean => {
 
 
 /** Cost for 24-hour unlimited streaming access (in ETH) */
-export const PAYMENT_AMOUNT_ETH = '0.001';
+export const PAYMENT_AMOUNT_ETH = '0.0003125';
 
 /** Cost in wei for smart contract / transaction value */
 export const PAYMENT_AMOUNT_WEI = parseEther(PAYMENT_AMOUNT_ETH);

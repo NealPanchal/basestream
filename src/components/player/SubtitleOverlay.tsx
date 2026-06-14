@@ -11,7 +11,7 @@
  * estimated position = (timestamp when play clicked) + elapsed wall-clock time.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SubtitleCue, getCueAt } from '@/lib/subtitle-engine';
 import { usePlayerStore } from '@/store/playerStore';
@@ -23,7 +23,7 @@ interface SubtitleOverlayProps {
   playStartMs: number | null;
 }
 
-export function SubtitleOverlay({ cues, playStartMs }: SubtitleOverlayProps) {
+export const SubtitleOverlay = memo(function SubtitleOverlay({ cues, playStartMs }: SubtitleOverlayProps) {
   const { subtitleEnabled, subtitleStyle, syncOffsetMs, isPlaying } = usePlayerStore();
   const [activeCue, setActiveCue] = useState<SubtitleCue | null>(null);
   const rafRef = useRef<number>(0);
@@ -91,4 +91,4 @@ export function SubtitleOverlay({ cues, playStartMs }: SubtitleOverlayProps) {
       </AnimatePresence>
     </div>
   );
-}
+});

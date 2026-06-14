@@ -6,7 +6,17 @@
  *
  * Subtitles are fetched from OpenSubtitles and rendered as a custom HTML
  * overlay on top of the cross-origin iframe.
+ *
+ * URL builders delegate to the provider registry (src/lib/providers/)
+ * and return `null` when required fields are missing.
  */
+
+import {
+  logEmbedUrl,
+  logValidationFailure,
+} from './stream-logger';
+
+import { getProvider, STREAM_SERVERS as REGISTRY_SERVERS } from './providers';
 
 // ─── Language definitions ─────────────────────────────────────────────────────
 
@@ -79,11 +89,21 @@ export const BG_OPACITY_MAP: Record<SubtitleStyle['bgOpacity'], string> = {
 
 const LS_KEY = 'bs_player_prefs';
 
+export interface StreamServer {
+  id: string;
+  name: string;
+  description: string;
+}
+
+/** Derived from the provider registry — no manual sync needed. */
+export const STREAM_SERVERS: StreamServer[] = REGISTRY_SERVERS;
+
 export interface PlayerPrefs {
   audioLang:       string;
   subtitleLang:    string;
   subtitleEnabled: boolean;
   subtitleStyle:   SubtitleStyle;
+  server:          string;
 }
 
 export const DEFAULT_PREFS: PlayerPrefs = {
@@ -91,6 +111,7 @@ export const DEFAULT_PREFS: PlayerPrefs = {
   subtitleLang:    'en',
   subtitleEnabled: false,
   subtitleStyle:   DEFAULT_SUBTITLE_STYLE,
+  server:          'streamimdb',
 };
 
 export function loadPrefs(): PlayerPrefs {
@@ -124,27 +145,60 @@ function detectBrowserLanguage(): PlayerPrefs {
   return { ...DEFAULT_PREFS, audioLang };
 }
 
-// ─── Embed URL builder ────────────────────────────────────────────────────────
+// ─── Embed URL builders (delegating to provider registry) ─────────────────────
 
-export function buildMovieEmbedUrl(movieId: number, audioLang = 'en'): string {
-  const params = new URLSearchParams({
-    autoPlay: 'true',
-    color:    '0052FF',
-    lang:     audioLang,
-  });
-  return `https://www.vidking.net/embed/movie/${movieId}?${params}`;
+/**
+ * Build an embed URL for a movie.
+ * Delegates to the provider registry for URL generation.
+ * Returns `null` if movieId is missing or falsy — callers must handle null.
+ */
+export function buildMovieEmbedUrl(
+  movieId: number | undefined | null,
+  audioLang = 'en',
+  serverId = 'streamimdb',
+): string | null {
+  // ── Validation gate ──────────────────────────────────────────────────────
+  if (!movieId || typeof movieId !== 'number' || isNaN(movieId)) {
+    logValidationFailure('movie', movieId);
+    return null;
+  }
+
+  const provider = getProvider(serverId);
+  const url = provider.generateMovieUrl(movieId, audioLang);
+
+  logEmbedUrl('movie', movieId, url, { provider: serverId });
+  return url;
 }
 
+/**
+ * Build an embed URL for a TV episode.
+ * Delegates to the provider registry for URL generation.
+ * Returns `null` if tvId, season, or episode is missing/falsy — callers must handle null.
+ */
 export function buildTVEmbedUrl(
-  tvId: number,
-  season: number,
-  episode: number,
+  tvId: number | undefined | null,
+  season: number | undefined | null,
+  episode: number | undefined | null,
   audioLang = 'en',
-): string {
-  const params = new URLSearchParams({
-    autoPlay: 'true',
-    color:    '0052FF',
-    lang:     audioLang,
-  });
-  return `https://www.vidking.net/embed/tv/${tvId}/${season}/${episode}?${params}`;
+  serverId = 'streamimdb',
+): string | null {
+  // ── Validation gate ──────────────────────────────────────────────────────
+  if (!tvId || typeof tvId !== 'number' || isNaN(tvId)) {
+    logValidationFailure('tv', tvId, season, episode);
+    return null;
+  }
+  if (!season || typeof season !== 'number' || isNaN(season)) {
+    logValidationFailure('tv', tvId, season, episode);
+    return null;
+  }
+  if (!episode || typeof episode !== 'number' || isNaN(episode)) {
+    logValidationFailure('tv', tvId, season, episode);
+    return null;
+  }
+
+  const provider = getProvider(serverId);
+  const url = provider.generateTVUrl(tvId, season, episode, audioLang);
+
+  logEmbedUrl('tv', tvId, url, { season, episode, provider: serverId });
+  return url;
 }

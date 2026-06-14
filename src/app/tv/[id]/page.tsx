@@ -1,30 +1,37 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Plus, ThumbsUp, Share2, ArrowLeft, Star, Clock, Calendar } from 'lucide-react';
+import { Play, Plus, ThumbsUp, Share2, ArrowLeft, Star, Clock, Calendar, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useAccount } from 'wagmi';
 import { useTVDetails } from '@/lib/tmdb';
 import ContentRow from '@/components/ContentRow';
 import SkeletonLoader from '@/components/SkeletonLoader';
 import { addToWatchHistory } from '@/utils/storage';
+import { useAccess } from '@/hooks/useAccess';
 
-// Player language system
+import dynamic from 'next/dynamic';
 import { usePlayerStore } from '@/store/playerStore';
-import { buildTVEmbedUrl } from '@/lib/player-prefs';
 import { fetchSubtitles, SubtitleCue } from '@/lib/subtitle-engine';
 import type { SubtitleStatus } from '@/lib/subtitle-engine';
-import { LanguagePanel } from '@/components/player/LanguagePanel';
-import { SubtitleOverlay } from '@/components/player/SubtitleOverlay';
-import { PlayerControls } from '@/components/player/PlayerControls';
+import { PlayerShell } from '@/components/player/PlayerShell';
+import { ProviderManager } from '@/components/player/ProviderManager';
+
+const SubtitleOverlay = dynamic(() => import('@/components/player/SubtitleOverlay').then(mod => mod.SubtitleOverlay), { ssr: false });
+const PlayerControls = dynamic(() => import('@/components/player/PlayerControls').then(mod => mod.PlayerControls), { ssr: false });
+
+// Reliability stack
+import { useStreamPlayer } from '@/hooks/useStreamPlayer';
 
 export default function TVDetailPage() {
   const { address: walletAddress } = useAccount();
   const params       = useParams();
   const searchParams = useSearchParams();
+  const router       = useRouter();
   const tvId         = params.id as string;
+  const { hasAccess } = useAccess(false, walletAddress);
   const { data: tvShow, isLoading, error } = useTVDetails(tvId);
 
   const [selectedSeason,  setSelectedSeason]  = useState(1);
@@ -34,7 +41,7 @@ export default function TVDetailPage() {
 
   // ── Language / subtitle state ─────────────────────────────────────────────
   const {
-    audioLang, subtitleLang, subtitleEnabled,
+    audioLang, subtitleLang, subtitleEnabled, server,
     setIsPlaying, reset: resetPlayer,
   } = usePlayerStore();
 
@@ -42,10 +49,22 @@ export default function TVDetailPage() {
   const [subtitleStatus, setSubtitleStatus] = useState<SubtitleStatus>('idle');
   const [playStartMs,    setPlayStartMs]    = useState<number | null>(null);
 
-  // Embed URL rebuilds on audioLang / season / episode change
-  const embedUrl = tvShow
-    ? buildTVEmbedUrl(tvShow.id, selectedSeason, selectedEpisode, audioLang)
-    : '';
+  // ── Stream reliability hook ───────────────────────────────────────────────
+  const stream = useStreamPlayer({
+    tmdbId:   tvShow?.id ?? null,
+    type:     'tv',
+    season:   selectedSeason,
+    episode:  selectedEpisode,
+    audioLang,
+  });
+
+  // Sync server preference from playerStore → hook
+  useEffect(() => {
+    if (showPlayer && server) {
+      stream.switchProvider(server as any);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [server]);
 
   useEffect(() => {
     const s = searchParams.get('season');
@@ -69,9 +88,11 @@ export default function TVDetailPage() {
     }
   }, [tvShow, selectedSeason, selectedEpisode, walletAddress]);
 
-  // Load subtitles when player opens or lang/episode changes
+  // Load subtitles AFTER playback starts (never blocks video startup)
   useEffect(() => {
     if (!showPlayer || !subtitleEnabled || !tvShow) return;
+    // Only fetch subtitles once playback is confirmed healthy
+    if (stream.providerState !== 'PLAYING' && stream.providerState !== 'READY') return;
 
     let cancelled = false;
     setSubtitleStatus('loading');
@@ -90,20 +111,35 @@ export default function TVDetailPage() {
     });
 
     return () => { cancelled = true; };
-  }, [showPlayer, subtitleEnabled, subtitleLang, tvShow, selectedSeason, selectedEpisode]);
+  }, [showPlayer, subtitleEnabled, subtitleLang, tvShow, selectedSeason, selectedEpisode, stream.providerState]);
 
   const handlePlay = useCallback((s?: number, e?: number) => {
+    if (!hasAccess) {
+      router.push('/unlock');
+      return;
+    }
     if (s !== undefined) setSelectedSeason(s);
     if (e !== undefined) setSelectedEpisode(e);
     setPlayerLoading(true);
     setShowPlayer(true);
-  }, []);
+  }, [hasAccess, router]);
 
   const handlePlayerLoad = useCallback(() => {
     setPlayerLoading(false);
     setPlayStartMs(performance.now());
     setIsPlaying(true);
-  }, [setIsPlaying]);
+  }, []);
+
+  useEffect(() => {
+    if (stream.providerState === 'PLAYING' || stream.providerState === 'READY') {
+      handlePlayerLoad();
+    }
+  }, [stream.providerState, handlePlayerLoad]);
+
+  const handlePlayerError = useCallback(() => {
+    stream.handleIframeError();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleClose = useCallback(() => {
     setShowPlayer(false);
@@ -149,73 +185,32 @@ export default function TVDetailPage() {
       {/* ── Fullscreen Player Overlay ── */}
       <AnimatePresence>
         {showPlayer && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[300] bg-black flex flex-col"
+          <PlayerShell
+            title={tvShow.name}
+            subtitle={`S${selectedSeason} E${selectedEpisode}`}
+            onClose={handleClose}
+            renderControls={(isIdle) => (
+              <>
+                <SubtitleOverlay cues={subtitleCues} playStartMs={playStartMs} />
+                <PlayerControls 
+                  subtitleStatus={subtitleStatus} 
+                  currentProvider={stream.currentProvider}
+                  providerHealth={stream.providerHealth}
+                  switchProvider={stream.switchProvider}
+                  isIdle={isIdle}
+                />
+              </>
+            )}
           >
-            {/* Top bar */}
-            <div className="flex items-center justify-between px-6 py-3 bg-black/90 backdrop-blur-md flex-shrink-0 border-b border-white/10">
-              <button onClick={handleClose}
-                className="flex items-center gap-3 text-gray-300 hover:text-white transition-all group min-w-0">
-                <ArrowLeft size={24} className="group-hover:-translate-x-1 transition-transform flex-shrink-0" />
-                <div className="flex flex-col items-start leading-tight min-w-0">
-                  <span className="font-bold text-lg truncate max-w-[240px] sm:max-w-none">{tvShow.name}</span>
-                  <span className="text-sm text-gray-500">S{selectedSeason} E{selectedEpisode}</span>
-                </div>
-              </button>
-              {/* BaseStream watermark */}
-              <div className="flex items-center gap-2 opacity-60">
-                <div className="w-4 h-4 rounded bg-base-blue flex items-center justify-center">
-                  <span className="text-[8px] font-black text-white leading-none">B</span>
-                </div>
-                <span className="text-gray-400 text-xs font-semibold hidden sm:block">BaseStream</span>
-              </div>
-            </div>
-
-            {/* Player wrapper */}
-            <div className="flex-1 relative overflow-hidden" style={{ zIndex: 0 }}>
-              {playerLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black" style={{ zIndex: 10 }}>
-                  <motion.div animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                    className="w-16 h-16 border-4 border-base-blue border-t-transparent rounded-full" />
-                </div>
-              )}
-
-              <iframe
-                src={embedUrl}
-                className="w-full h-full border-0"
-                style={{ zIndex: 1 }}
-                allowFullScreen
-                allow="autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                onLoad={handlePlayerLoad}
-                title={`${tvShow.name} S${selectedSeason}E${selectedEpisode}`}
-              />
-
-              {/* BaseStream badge */}
-              <div aria-hidden="true"
-                className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg"
-                style={{
-                  zIndex: 2, pointerEvents: 'none',
-                  background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(255,255,255,0.08)', opacity: 0.70,
-                }}>
-                <div className="w-3.5 h-3.5 rounded-sm bg-base-blue flex items-center justify-center flex-shrink-0">
-                  <span className="text-[7px] font-black text-white leading-none">B</span>
-                </div>
-                <span className="text-[10px] font-semibold text-white/80 tracking-wide leading-none">BaseStream</span>
-              </div>
-
-              {/* ── Subtitle overlay ── */}
-              <SubtitleOverlay cues={subtitleCues} playStartMs={playStartMs} />
-
-              {/* ── Language panel ── */}
-              <LanguagePanel />
-
-              {/* ── Player controls bar ── */}
-              <PlayerControls subtitleStatus={subtitleStatus} />
-            </div>
-          </motion.div>
+            <ProviderManager
+              stream={stream}
+              playerLoading={playerLoading}
+              backdropUrl={backdropUrl}
+              posterUrl={posterUrl}
+              title={`${tvShow.name} S${selectedSeason}E${selectedEpisode}`}
+              iframeKeyPrefix={`tv-s${selectedSeason}-e${selectedEpisode}`}
+            />
+          </PlayerShell>
         )}
       </AnimatePresence>
 
