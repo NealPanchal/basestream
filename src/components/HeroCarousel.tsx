@@ -146,7 +146,7 @@ const HeroCarousel = ({ items, onPlay }: HeroCarouselProps) => {
             alt={activeItem.title}
             fill
             priority={activeIndex === 0}
-            className="object-cover object-top"
+            className="object-cover object-center md:object-top"
             sizes="100vw"
           />
 
@@ -176,7 +176,7 @@ const HeroCarousel = ({ items, onPlay }: HeroCarouselProps) => {
       </AnimatePresence>
 
       {/* ── Content overlay ──────────────────────────────────────────── */}
-      <div className="relative h-full flex flex-col justify-end pb-14 md:pb-20 px-6 md:px-12 lg:px-16 max-w-[1800px] mx-auto"
+      <div className="relative h-full flex flex-col justify-end pb-24 md:pb-28 px-6 md:px-12 lg:px-16 max-w-[1800px] mx-auto"
         style={{ zIndex: 10 }}
       >
         <AnimatePresence mode="wait">
@@ -290,14 +290,14 @@ const HeroCarousel = ({ items, onPlay }: HeroCarouselProps) => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.51, duration: 0.55, ease: 'easeOut' }}
-              className="flex flex-wrap items-center gap-3"
+              className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto mt-2"
             >
               {/* ▶ Watch Now */}
               <motion.button
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => onPlay?.(activeItem)}
-                className="flex items-center gap-2.5 px-7 py-3.5 rounded-xl font-bold text-sm md:text-base text-white shadow-xl transition-all"
+                className="flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl font-bold text-[15px] md:text-base text-white shadow-xl transition-all"
                 style={{
                   background: 'var(--accent)',
                   boxShadow: '0 0 30px var(--accent-glow), 0 4px 16px rgba(0,0,0,0.5)',
@@ -319,7 +319,7 @@ const HeroCarousel = ({ items, onPlay }: HeroCarouselProps) => {
                 whileHover={{ scale: 1.04, backgroundColor: 'rgba(255,255,255,0.10)' }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => router.push(`/movie/${activeItem.id}`)}
-                className="flex items-center gap-2 px-6 py-3.5 rounded-xl font-semibold text-sm md:text-base text-white transition-all"
+                className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-semibold text-[15px] md:text-base text-white transition-all"
                 style={{
                   background: 'rgba(255,255,255,0.06)',
                   border: '1px solid rgba(255,255,255,0.14)',
@@ -359,7 +359,7 @@ const HeroCarousel = ({ items, onPlay }: HeroCarouselProps) => {
 
       {/* ── Dot pagination ───────────────────────────────────────────── */}
       <div
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2"
+        className="absolute bottom-8 md:bottom-10 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2"
       >
         {items.map((_, i) => (
           <button

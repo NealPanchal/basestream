@@ -79,7 +79,7 @@ function HomeContent() {
       {/* Active access indicator */}
       {hasAccess && (
         <motion.div
-          className="fixed top-20 right-6 z-50 flex flex-col items-end gap-2"
+          className="hidden sm:flex fixed top-24 right-6 lg:right-10 z-50 flex-col items-end gap-2"
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 1 }}
