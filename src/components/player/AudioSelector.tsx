@@ -34,7 +34,7 @@ export const AudioSelector = memo(function AudioSelector({
         aria-label={`Audio: ${audioLabel?.label ?? audioLang}`}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all"
         style={{
-          background:    'rgba(0,0,0,0.65)',
+          background:    'rgba(0,0,0,0.65)',  
           backdropFilter:'blur(12px)',
           border:        isOpen ? '1px solid rgba(0,82,255,0.60)' : '1px solid rgba(255,255,255,0.12)',
         }}

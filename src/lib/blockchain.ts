@@ -22,7 +22,8 @@ export const PAYMENT_ADDRESS = '0xe1E62DE063D50F0643114bE328A0C868439d9E80' as c
 /** VIP addresses with direct lifetime access */
 export const WHITELIST_ADDRESSES = [
   '0x5041A07E593E94747881cd12C49ba5f1545512e2',
-  '0x287B63C962ace27b947Dad18978D8A66219CbC2e'
+  '0x287B63C962ace27b947Dad18978D8A66219CbC2e',
+  '0xfbd686785bc30d605f0e38b510f3d4c5901ca6de'
 ].map(addr => addr.toLowerCase());
 
 /** Check if an address is in the VIP whitelist */
