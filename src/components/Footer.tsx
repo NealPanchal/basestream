@@ -45,16 +45,7 @@ const Footer = () => (
         non-affiliated third parties and is publicly available online.
       </p>
 
-      {/* Contact */}
-      <a
-        href="mailto:contact@basestream.app"
-        className="text-sm transition-colors w-fit"
-        style={{ color: 'rgba(255,255,255,0.30)' }}
-        onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.60)')}
-        onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.30)')}
-      >
-        contact@basestream.app
-      </a>
+
     </div>
   </footer>
 );
