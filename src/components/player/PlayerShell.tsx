@@ -37,9 +37,14 @@ export function PlayerShell({ title, subtitle, onClose, children, renderControls
     >
       {/* Permanent Exit Button */}
       <button
-        onClick={onClose}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
         onMouseEnter={() => window.focus()}
-        className="absolute top-4 left-6 z-[200] flex items-center justify-center w-10 h-10 flex-shrink-0 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white/80 hover:text-white hover:bg-[#0052ff]/20 hover:border-[#0052ff]/50 transition-all shadow-lg pointer-events-auto"
+        style={{ zIndex: 9999 }}
+        className="absolute top-4 left-6 flex items-center justify-center w-10 h-10 flex-shrink-0 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white/80 hover:text-white hover:bg-[#0052ff]/20 hover:border-[#0052ff]/50 transition-all shadow-lg pointer-events-auto"
         aria-label="Exit Player"
         title="Exit Player (Esc)"
       >
@@ -55,14 +60,15 @@ export function PlayerShell({ title, subtitle, onClose, children, renderControls
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
             onMouseEnter={() => window.focus()}
-            className="absolute top-0 left-0 w-full flex items-center justify-between pr-6 pl-20 py-4 bg-gradient-to-b from-black/80 to-transparent flex-shrink-0 z-50 pointer-events-auto"
+            style={{ zIndex: 50 }}
+            className="absolute top-0 left-0 w-full flex items-center justify-between pr-6 pl-20 py-4 bg-gradient-to-b from-black/80 to-transparent flex-shrink-0 pointer-events-none"
           >
-            <div className="flex flex-col items-start leading-tight min-w-0">
+            <div className="flex flex-col items-start leading-tight min-w-0 pointer-events-auto">
               <span className="font-medium text-gray-200 truncate max-w-[240px] sm:max-w-none">{title}</span>
               {subtitle && <span className="text-sm text-gray-400">{subtitle}</span>}
             </div>
             {topRightContent && (
-              <div className="flex items-center gap-4" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-4 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
                 {topRightContent}
               </div>
             )}
