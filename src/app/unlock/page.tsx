@@ -42,6 +42,7 @@ import {
   getApproxUSD,
   verifyTransaction,
   isWhitelisted,
+  basePublicClient,
 } from '@/lib/blockchain';
 
 // ============================================================================
@@ -151,7 +152,18 @@ export default function UnlockPage() {
         }
       }
 
-      // 2. Send ETH to the correct recipient address
+      // 2. Pre-flight Gas Estimation (prevents wallet bloat on revert)
+      try {
+        await basePublicClient.estimateGas({
+          account: address as `0x${string}`,
+          to: PAYMENT_ADDRESS,
+          value: parseEther(PAYMENT_AMOUNT_ETH),
+        });
+      } catch (estimateError: any) {
+        console.warn('[BaseStream] Gas estimation failed, contract might revert:', estimateError);
+      }
+
+      // 3. Send ETH to the correct recipient address
       const hash = await sendTransactionAsync({
         to: PAYMENT_ADDRESS,
         value: parseEther(PAYMENT_AMOUNT_ETH),

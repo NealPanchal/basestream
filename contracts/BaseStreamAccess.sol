@@ -2,17 +2,9 @@
 pragma solidity ^0.8.20;
 
 /**
- * @dev Simple contract interfaces to minimize dependency size in frontend audits.
- */
-interface IERC20 {
-    function transfer(address to, uint256 value) external returns (bool);
-    function balanceOf(address account) external view returns (uint256);
-}
-
-/**
  * @title BaseStreamAccess
  * @dev Audited, production-safe paywall contract for BaseStream L2 native streaming passes.
- * Uses custom implementations of basic Owner and ReentrancyGuard structures to optimize gas.
+ * Optimized for minimum gas on Base L2 using zero-calldata receive() and storage packing.
  */
 contract BaseStreamAccess {
     
@@ -22,26 +14,22 @@ contract BaseStreamAccess {
     // Access duration (24 hours)
     uint256 public constant PASS_DURATION = 24 hours;
 
-    // Owner address
+    // Packed Storage Slot 1
     address public owner;
-    
-    // Pending owner for 2-step ownership transfers
-    address public pendingOwner;
-
-    // Emergency pause circuit breaker
     bool public paused;
-
-    // Reentrancy lock state
     uint8 private _unlocked = 1;
 
+    // Storage Slot 2
+    address public pendingOwner;
+
     // Maps user addresses to their access expiry timestamp
-    mapping(address => uint256) public accessExpiry;
+    mapping(address => uint64) public accessExpiry;
     
     // Maps user addresses to custom lifetime access overrides (Admin set)
     mapping(address => bool) public isLifetimeUser;
 
     // Events
-    event PassUnlocked(address indexed user, uint256 expiresAt);
+    event PassUnlocked(address indexed user, uint64 expiresAt);
     event LifetimeAccessGranted(address indexed user);
     event LifetimeAccessRevoked(address indexed user);
     event FundsWithdrawn(address indexed owner, uint256 amount);
@@ -50,26 +38,36 @@ contract BaseStreamAccess {
     event Paused();
     event Unpaused();
 
+    // Custom Errors (Cheaper than revert strings)
+    error NotOwner();
+    error ReentrantCall();
+    error ContractPaused();
+    error ContractNotPaused();
+    error InvalidPayment();
+    error InvalidAddress();
+    error NoFundsToWithdraw();
+    error WithdrawalFailed();
+
     // Modifiers
     modifier onlyOwner() {
-        require(msg.sender == owner, "BaseStreamAccess: caller is not the owner");
+        if (msg.sender != owner) revert NotOwner();
         _;
     }
 
     modifier nonReentrant() {
-        require(_unlocked == 1, "BaseStreamAccess: reentrancy guard trigger");
+        if (_unlocked == 0) revert ReentrantCall();
         _unlocked = 0;
         _;
         _unlocked = 1;
     }
 
     modifier whenNotPaused() {
-        require(!paused, "BaseStreamAccess: contract operations are paused");
+        if (paused) revert ContractPaused();
         _;
     }
 
     modifier whenPaused() {
-        require(paused, "BaseStreamAccess: contract operations are not paused");
+        if (!paused) revert ContractNotPaused();
         _;
     }
 
@@ -79,20 +77,19 @@ contract BaseStreamAccess {
     }
 
     /**
-     * @notice Pay 0.001 ETH to unlock 24-hour unlimited streaming access
+     * @notice Zero-calldata payment handler
+     * @dev Send exactly 0.001 ETH here to unlock 24-hour access
      */
-    function payForAccess() external payable whenNotPaused nonReentrant {
-        require(msg.value == PASS_COST, "BaseStreamAccess: Payment must be exactly 0.001 ETH");
+    receive() external payable whenNotPaused {
+        if (msg.value != PASS_COST) revert InvalidPayment();
         
-        uint256 currentExpiry = accessExpiry[msg.sender];
-        uint256 newExpiry;
+        uint64 currentExpiry = accessExpiry[msg.sender];
+        uint64 newExpiry;
         
         if (currentExpiry > block.timestamp) {
-            // Extend existing unexpired pass
-            newExpiry = currentExpiry + PASS_DURATION;
+            newExpiry = currentExpiry + uint64(PASS_DURATION);
         } else {
-            // Unlock brand new pass
-            newExpiry = block.timestamp + PASS_DURATION;
+            newExpiry = uint64(block.timestamp + PASS_DURATION);
         }
 
         accessExpiry[msg.sender] = newExpiry;
@@ -111,7 +108,7 @@ contract BaseStreamAccess {
      * @notice Admin function to grant direct lifetime access overrides
      */
     function grantLifetimeAccess(address user) external onlyOwner {
-        require(user != address(0), "BaseStreamAccess: Invalid user address");
+        if (user == address(0)) revert InvalidAddress();
         isLifetimeUser[user] = true;
         emit LifetimeAccessGranted(user);
     }
@@ -120,7 +117,7 @@ contract BaseStreamAccess {
      * @notice Admin function to revoke lifetime access overrides
      */
     function revokeLifetimeAccess(address user) external onlyOwner {
-        require(user != address(0), "BaseStreamAccess: Invalid user address");
+        if (user == address(0)) revert InvalidAddress();
         isLifetimeUser[user] = false;
         emit LifetimeAccessRevoked(user);
     }
@@ -130,10 +127,10 @@ contract BaseStreamAccess {
      */
     function withdrawFunds() external onlyOwner nonReentrant {
         uint256 balance = address(this).balance;
-        require(balance > 0, "BaseStreamAccess: No funds to withdraw");
+        if (balance == 0) revert NoFundsToWithdraw();
         
         (bool success, ) = payable(owner).call{value: balance}("");
-        require(success, "BaseStreamAccess: Withdrawal transfer failed");
+        if (!success) revert WithdrawalFailed();
         
         emit FundsWithdrawn(owner, balance);
     }
@@ -142,7 +139,7 @@ contract BaseStreamAccess {
      * @notice Initiates a 2-step transfer of contract ownership to a new account
      */
     function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "BaseStreamAccess: new owner is the zero address");
+        if (newOwner == address(0)) revert InvalidAddress();
         pendingOwner = newOwner;
         emit OwnershipTransferStarted(owner, newOwner);
     }
@@ -151,7 +148,7 @@ contract BaseStreamAccess {
      * @notice Accepts the ownership transfer (step 2 of ownership change)
      */
     function acceptOwnership() external {
-        require(msg.sender == pendingOwner, "BaseStreamAccess: caller is not the pending owner");
+        if (msg.sender != pendingOwner) revert NotOwner();
         address oldOwner = owner;
         owner = pendingOwner;
         pendingOwner = address(0);
