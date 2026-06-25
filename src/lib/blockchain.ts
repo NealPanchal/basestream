@@ -17,7 +17,7 @@ export const BASESCAN_API_URL = 'https://api.basescan.org/api';
 // ============================================================================
 
 /** Wallet address that receives streaming access payments */
-export const PAYMENT_ADDRESS = '0xe1E62DE063D50F0643114bE328A0C868439d9E80' as const;
+export const PAYMENT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x2bf0Cc58fdB1136e6BB8b3D334CA9Fa359824771') as `0x${string}`;
 
 /** VIP addresses with direct lifetime access */
 export const WHITELIST_ADDRESSES = [
@@ -35,7 +35,7 @@ export const isWhitelisted = (address: string | undefined): boolean => {
 
 
 /** Cost for 24-hour unlimited streaming access (in ETH) */
-export const PAYMENT_AMOUNT_ETH = '0.0003125';
+export const PAYMENT_AMOUNT_ETH = '0.0003';
 
 /** Cost in wei for smart contract / transaction value */
 export const PAYMENT_AMOUNT_WEI = parseEther(PAYMENT_AMOUNT_ETH);
@@ -62,7 +62,7 @@ export const basePublicClient = createPublicClient({
   transport: http(process.env.NEXT_PUBLIC_BASE_RPC || 'https://mainnet.base.org'),
 });
 
-export const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0xe1E62DE063D50F0643114bE328A0C868439d9E80') as `0x${string}`;
+export const CONTRACT_ADDRESS = PAYMENT_ADDRESS;
 
 export const BASE_STREAM_ACCESS_ABI = [
   { "inputs": [], "stateMutability": "nonpayable", "type": "constructor" },

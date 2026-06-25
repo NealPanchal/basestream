@@ -8,8 +8,8 @@ pragma solidity ^0.8.20;
  */
 contract BaseStreamAccess {
     
-    // Constant streaming pass cost (0.001 ETH)
-    uint256 public constant PASS_COST = 0.001 ether;
+    // Constant streaming pass cost (0.0003 ETH ≈ $0.96)
+    uint256 public constant PASS_COST = 0.0003 ether;
     
     // Access duration (24 hours)
     uint256 public constant PASS_DURATION = 24 hours;

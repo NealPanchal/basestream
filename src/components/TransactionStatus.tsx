@@ -12,6 +12,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, CheckCircle2, XCircle, ExternalLink } from 'lucide-react';
+import { PAYMENT_AMOUNT_ETH } from '@/lib/blockchain';
 
 export type TransactionState = 'idle' | 'sending' | 'confirming' | 'success' | 'error';
 
@@ -78,7 +79,7 @@ const TransactionStatus: React.FC<TransactionStatusProps> = ({
               <div className="w-full bg-base-gray-light rounded-xl p-4 border border-white/5">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Amount</span>
-                  <span className="text-white font-mono font-semibold">0.001 ETH</span>
+                  <span className="text-white font-mono font-semibold">{PAYMENT_AMOUNT_ETH} ETH</span>
                 </div>
                 <div className="flex justify-between text-sm mt-2">
                   <span className="text-gray-500">Network</span>
