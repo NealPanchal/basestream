@@ -1,7 +1,15 @@
+import { Metadata } from 'next';
 import { tmdbServer } from '@/lib/tmdb-server';
 import { tmdbApiCalls } from '@/lib/tmdb-config';
 import AccessGate from '@/components/AccessGate';
 import HomeClient from './HomeClient';
+
+export const metadata: Metadata = {
+  other: {
+    'base:app_id': '69c65070638fc70642e549dc',
+  },
+};
+
 
 /**
  * Server-side entry point for the homepage.
