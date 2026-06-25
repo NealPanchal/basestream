@@ -64,7 +64,7 @@ export const PROVIDER_ROSTER: readonly ProviderId[] = ALL_PROVIDERS
  * Returns the VidSrc provider as fallback if the ID is unknown.
  */
 export function getProvider(id: string): StreamProvider {
-  return PROVIDER_MAP.get(id) ?? streamimdbProvider;
+  return PROVIDER_MAP.get(id) ?? vidsrcProvider;
 }
 
 /**

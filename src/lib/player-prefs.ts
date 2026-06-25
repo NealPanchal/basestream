@@ -111,7 +111,7 @@ export const DEFAULT_PREFS: PlayerPrefs = {
   subtitleLang:    'en',
   subtitleEnabled: false,
   subtitleStyle:   DEFAULT_SUBTITLE_STYLE,
-  server:          'streamimdb',
+  server:          'vidsrc',
 };
 
 export function loadPrefs(): PlayerPrefs {
@@ -155,7 +155,7 @@ function detectBrowserLanguage(): PlayerPrefs {
 export function buildMovieEmbedUrl(
   movieId: number | undefined | null,
   audioLang = 'en',
-  serverId = 'streamimdb',
+  serverId = 'vidsrc',
 ): string | null {
   // ── Validation gate ──────────────────────────────────────────────────────
   if (!movieId || typeof movieId !== 'number' || isNaN(movieId)) {
@@ -180,7 +180,7 @@ export function buildTVEmbedUrl(
   season: number | undefined | null,
   episode: number | undefined | null,
   audioLang = 'en',
-  serverId = 'streamimdb',
+  serverId = 'vidsrc',
 ): string | null {
   // ── Validation gate ──────────────────────────────────────────────────────
   if (!tvId || typeof tvId !== 'number' || isNaN(tvId)) {
